@@ -17,7 +17,7 @@ El DataSource JNDI `java:jboss/datasources/DamageAssessment` es administrado por
 - `DAMAGE_DB_CA`: ruta de CA local, fuera del repositorio. JDBC utiliza obligatoriamente `sslmode=verify-full`; host, puerto y nombre forman la URL externa sin permitir desactivar TLS.
 - `DAMAGE_DB_POOL_MIN` (0), `DAMAGE_DB_POOL_MAX` (8), `DAMAGE_DB_POOL_WAIT_MS` (5000). Cada réplica tiene su propio pool: dimensione la suma dentro del presupuesto PostgreSQL del dominio.
 - `DAMAGE_DB_CONNECT_TIMEOUT` (5), `DAMAGE_DB_SOCKET_TIMEOUT` (30), `DAMAGE_DB_QUERY_TIMEOUT` (10), en segundos. WildFly valida las conexiones al obtenerlas y descarta conexiones rotas mediante los componentes PostgreSQL de IronJacamar.
-- `DISASTERS_BEARER_TOKEN`: token de servicio externo opcional, de duración acotada y obtenido del proveedor de identidad; nunca se incluye en el WAR.
+- `DISASTERS_OAUTH_TOKEN_ENDPOINT`, `DISASTERS_OAUTH_CLIENT_ID`, `DISASTERS_OAUTH_CLIENT_SECRET`: configuración externa de Client Credentials para consultar Desastres; secretos fuera del WAR.
 - `DISASTERS_BASE_URL`: URL del servicio propietario de Desastres. Timeout de conexión 3 segundos y de solicitud 5 segundos; no hay transacciones JTA abiertas durante esa llamada.
 
 En el proyecto Supabase existente se utiliza Session Pooler en el puerto 5432: permite conectividad IPv4 y mantiene la sesión y los prepared statements necesarios para JDBC/JPA. No se utiliza transaction pooling ni un pool adicional en la aplicación; WildFly administra las conexiones persistentes. Se conserva la posibilidad de conexión directa si la red dispone de IPv6.
@@ -116,7 +116,7 @@ Ambas instancias deben compartir el PostgreSQL aislado y la configuración JWT d
 
 En YARP configure externamente `ReverseProxy__Clusters__damage-assessment-api__Destinations__local__Address` con la URL del Application Server. Las rutas son explícitas, sin fallback a operaciones futuras. La ausencia de destinos de Daños no impide atender otros servicios.
 
-Para habilitar el consumidor existente de Reconstrucción, configure externamente `ExternalApis__DamageAssessments__BaseUrl` y su `ExternalApis__DamageAssessments__BearerToken` de servicio, con issuer/audiencia y claims autorizados, y desactive `Reconstruction__DemoExternalData` en producción. En Development, una BaseUrl explícita de DamageAssessments selecciona el lector real incluso con DemoExternalData; la financiación demo permanece identificada como simulada y no se utiliza fuera de Development. No se cambia su lector HTTP ni sus reglas financieras. El contrato se verificó utilizando directamente `DamageAssessmentHttpReader` contra este servicio a través de YARP.
+Para habilitar el consumidor existente de Reconstrucción, configure externamente `ExternalApis__DamageAssessments__BaseUrl` y `ExternalApis__DamageAssessments__OAuth__TokenEndpoint`, `ExternalApis__DamageAssessments__OAuth__ClientId`, `ExternalApis__DamageAssessments__OAuth__ClientSecret` externos, con issuer/audiencia y claims autorizados, y desactive `Reconstruction__DemoExternalData` en producción. En Development, una BaseUrl explícita de DamageAssessments selecciona el lector real incluso con DemoExternalData; la financiación demo permanece identificada como simulada y no se utiliza fuera de Development. No se cambia su lector HTTP ni sus reglas financieras. El contrato se verificó utilizando directamente `DamageAssessmentHttpReader` contra este servicio a través de YARP.
 
 ## Evidencias privadas y Valet Key
 
@@ -167,3 +167,11 @@ Configuración externa: ASSESSMENT_BATCH_MAX (50, rango 1–50), ASSESSMENT_SYNC
 Android utiliza Room y archivos privados para operar desconectado, el WorkManager existente para recuperación y Valet Key para transferencia directa sin enviar JWT a Storage. Esto conserva disponibilidad local a cambio de consistencia eventual, espacio privado, expiración de permisos y reconciliación de conflictos. La autenticación manual de pruebas existe únicamente en Debug; el mecanismo de obtención es independiente de la sesión cifrada y podrá sustituirse por OIDC. Release mantiene Daños deshabilitado hasta la integración de identidad.
 
 La regresión específica se ejecuta con `scripts/sync_test.py` sobre WildFly y PostgreSQL aislados; contempla resultados parciales, reintentos, cursores autorizados y commits fuera de orden. No requiere cambiar las pruebas de otros dominios.
+
+## Keycloak
+
+Set `JWT_ISSUER`, `JWT_AUDIENCE=damage-assessment-api` and `JWT_PUBLIC_KEY_LOCATION` to the issuer and JWKS URI. MicroProfile JWT verifies locally with cached signing keys and maps `role` to groups. Organization, disaster and resource authorization is unchanged. Supply CA trust through the external JVM trust store, never a permissive verifier.
+
+DisasterReader uses `DISASTERS_OAUTH_TOKEN_ENDPOINT`, `DISASTERS_OAUTH_CLIENT_ID`, `DISASTERS_OAUTH_CLIENT_SECRET` instead of `DISASTERS_BEARER_TOKEN`. Client Credentials reuses HttpClient with HTTPS, a three-second bound, a 64 KiB response limit and no redirects. Tokens are cached and renewed before expiry. Missing credentials or issuer failure returns a dependency error without anonymous fallback. Preliminary evaluations still require no disaster lookup. Calls remain outside JTA.
+
+`tests/OAuthChecks.java` verifies real acquisition/cache/renewal with those variables and an isolated five-second client. Compile with Java 21 against `target/classes`, Maven dependencies and a JSON-P implementation; run `platform.damage.business.OAuthChecks` with external CA trust. No credentials are committed.
