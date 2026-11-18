@@ -6,6 +6,16 @@ import java.io.*;
 @Provider
 public class RequestLimit implements ContainerRequestFilter {
     public void filter(ContainerRequestContext request) throws IOException {
+        if(request.hasEntity()&&request.getMediaType()!=null&&request.getMediaType().isCompatible(jakarta.ws.rs.core.MediaType.MULTIPART_FORM_DATA_TYPE)
+            &&request.getUriInfo().getPath().matches("evaluaciones/[a-fA-F0-9-]{36}/evidencias")) {
+            long maximum=Long.parseLong(System.getenv().getOrDefault("EVIDENCE_MAX_BYTES","6291456"))+65536;
+            request.setEntityStream(new FilterInputStream(request.getEntityStream()) {
+                private long count;
+                private int checked(int n) { if(n>0&&(count+=n)>maximum)throw new WebApplicationException(413);return n; }
+                public int read() throws IOException { int value=in.read();if(value>=0)checked(1);return value; }
+                public int read(byte[] data,int offset,int length) throws IOException { return checked(in.read(data,offset,length)); }
+            });return;
+        }
         if(request.hasEntity()) {
             byte[] body=request.getEntityStream().readNBytes(262145);
             if(body.length>262144)throw new WebApplicationException(413);

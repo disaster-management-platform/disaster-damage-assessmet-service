@@ -889,6 +889,390 @@
           }
         ]
       }
+    },
+    "/api/evaluaciones/{id}/evidencias": {
+      "get": {
+        "summary": "Evidencias autorizadas: GET /api/evaluaciones/{id}/evidencias",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metadatos; intención incluye uploadUrl, uploadExpiresAt, method PUT y headers. Descarga devuelve url y expiresAt (60 segundos).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Evidence"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Permisos insuficientes"
+          },
+          "404": {
+            "description": "No visible"
+          },
+          "409": {
+            "description": "UUID, revisión o confirmación concurrente; reintentar la misma identidad"
+          },
+          "413": {
+            "description": "Tamaño excedido"
+          },
+          "422": {
+            "description": "Archivo rechazado, expirado o aún inexistente"
+          },
+          "429": {
+            "description": "Capacidad de intenciones alcanzada"
+          },
+          "503": {
+            "description": "Storage no disponible o concurrencia agotada"
+          }
+        }
+      },
+      "post": {
+        "summary": "Evidencias autorizadas: POST /api/evaluaciones/{id}/evidencias",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metadatos; intención incluye uploadUrl, uploadExpiresAt, method PUT y headers. Descarga devuelve url y expiresAt (60 segundos).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Evidence"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uploadUrl": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "uploadExpiresAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "method": {
+                          "type": "string",
+                          "enum": [
+                            "PUT"
+                          ]
+                        },
+                        "headers": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Permisos insuficientes"
+          },
+          "404": {
+            "description": "No visible"
+          },
+          "409": {
+            "description": "UUID, revisión o confirmación concurrente; reintentar la misma identidad"
+          },
+          "413": {
+            "description": "Tamaño excedido"
+          },
+          "422": {
+            "description": "Archivo rechazado, expirado o aún inexistente"
+          },
+          "429": {
+            "description": "Capacidad de intenciones alcanzada"
+          },
+          "503": {
+            "description": "Storage no disponible o concurrencia agotada"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceUpload"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "size",
+                  "sha256"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "size": {
+                    "type": "integer"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "JSON: crear intención durable y transferir directamente con PUT al uploadUrl, Content-Type indicado y x-upsert:false; confirmar después. La vigencia efectiva proviene del token del proveedor, normalmente 2 horas. Multipart transmite y confirma usando el mismo sistema. Nunca almacenar URLs como referencias."
+      }
+    },
+    "/api/evaluaciones/{id}/evidencias/{evidenceId}": {
+      "get": {
+        "summary": "Evidencias autorizadas: GET /api/evaluaciones/{id}/evidencias/{evidenceId}",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "evidenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metadatos; intención incluye uploadUrl, uploadExpiresAt, method PUT y headers. Descarga devuelve url y expiresAt (60 segundos).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Permisos insuficientes"
+          },
+          "404": {
+            "description": "No visible"
+          },
+          "409": {
+            "description": "UUID, revisión o confirmación concurrente; reintentar la misma identidad"
+          },
+          "413": {
+            "description": "Tamaño excedido"
+          },
+          "422": {
+            "description": "Archivo rechazado, expirado o aún inexistente"
+          },
+          "429": {
+            "description": "Capacidad de intenciones alcanzada"
+          },
+          "503": {
+            "description": "Storage no disponible o concurrencia agotada"
+          }
+        }
+      }
+    },
+    "/api/evaluaciones/{id}/evidencias/{evidenceId}/confirmar": {
+      "post": {
+        "summary": "Evidencias autorizadas: POST /api/evaluaciones/{id}/evidencias/{evidenceId}/confirmar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "evidenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metadatos; intención incluye uploadUrl, uploadExpiresAt, method PUT y headers. Descarga devuelve url y expiresAt (60 segundos).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Permisos insuficientes"
+          },
+          "404": {
+            "description": "No visible"
+          },
+          "409": {
+            "description": "UUID, revisión o confirmación concurrente; reintentar la misma identidad"
+          },
+          "413": {
+            "description": "Tamaño excedido"
+          },
+          "422": {
+            "description": "Archivo rechazado, expirado o aún inexistente"
+          },
+          "429": {
+            "description": "Capacidad de intenciones alcanzada"
+          },
+          "503": {
+            "description": "Storage no disponible o concurrencia agotada"
+          }
+        }
+      }
+    },
+    "/api/evaluaciones/{id}/evidencias/{evidenceId}/descarga": {
+      "get": {
+        "summary": "Evidencias autorizadas: GET /api/evaluaciones/{id}/evidencias/{evidenceId}/descarga",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "evidenceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metadatos; intención incluye uploadUrl, uploadExpiresAt, method PUT y headers. Descarga devuelve url y expiresAt (60 segundos).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Permisos insuficientes"
+          },
+          "404": {
+            "description": "No visible"
+          },
+          "409": {
+            "description": "UUID, revisión o confirmación concurrente; reintentar la misma identidad"
+          },
+          "413": {
+            "description": "Tamaño excedido"
+          },
+          "422": {
+            "description": "Archivo rechazado, expirado o aún inexistente"
+          },
+          "429": {
+            "description": "Capacidad de intenciones alcanzada"
+          },
+          "503": {
+            "description": "Storage no disponible o concurrencia agotada"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1244,6 +1628,89 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2000
+          }
+        }
+      },
+      "EvidenceUpload": {
+        "type": "object",
+        "required": [
+          "originalFileName",
+          "contentType",
+          "size",
+          "sha256"
+        ],
+        "properties": {
+          "originalFileName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "application/pdf"
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 6291456
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-fA-F0-9]{64}$"
+          }
+        }
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "evidenceId": {
+            "type": "string"
+          },
+          "evaluationId": {
+            "type": "string"
+          },
+          "clientRequestId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "originalFileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "confirmedAt": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PendingUpload",
+              "Verified",
+              "Rejected",
+              "Expired"
+            ]
           }
         }
       }

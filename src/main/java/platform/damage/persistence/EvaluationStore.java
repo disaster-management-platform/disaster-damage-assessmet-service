@@ -14,10 +14,22 @@ public class EvaluationStore {
     public Evaluation byRequest(UUID id) { return em.createQuery("select e from Evaluation e where e.clientRequestId=:id",Evaluation.class).setParameter("id",id).getResultStream().findFirst().orElse(null); }
     public List<Evaluation> list(int disasterId) { return em.createQuery("select e from Evaluation e where e.disasterId=:id order by e.evaluationId",Evaluation.class).setParameter("id",disasterId).getResultList(); }
     public Map<String,Object> catalogs() { return Map.of("assetTypes",em.createQuery("select a from AssetType a order by a.id",AssetType.class).getResultList(),"damageCategories",em.createQuery("select a from DamageCategory a order by a.id",DamageCategory.class).getResultList()); }
+    private List<String> references(String json) { return jakarta.json.Json.createReader(new java.io.StringReader(json)).readArray().getValuesAs(jakarta.json.JsonString.class).stream().map(jakarta.json.JsonString::getString).toList(); }
+    private void evidence(Evaluation e,List<String> references,boolean validating) {
+        var previous=e.evidence==null?Set.<String>of():new HashSet<>(references(e.evidence));
+        for(String reference:references) {
+            if(!validating&&previous.contains(reference))continue;
+            if(!reference.startsWith("attachment:"))throw new WebApplicationException("Referencia de evidencia no verificada",422);
+            UUID id;try{id=UUID.fromString(reference.substring(11));}catch(Exception failure){throw new WebApplicationException(422);}
+            var file=em.find(Evidence.class,id);
+            if(file==null||file.status!=Evidence.Status.Verified||!Objects.equals(file.evaluationId,e.evaluationId)||!file.organizationId.equals(e.organization)||file.revision>e.revision)throw new WebApplicationException("Evidencia incompatible",422);
+        }
+    }
     private void apply(Evaluation e, EvaluationInput input) {
         var type=em.find(AssetType.class,input.assetTypeId,LockModeType.PESSIMISTIC_READ);
         var category=em.find(DamageCategory.class,input.damageCategoryId,LockModeType.PESSIMISTIC_READ);
         if(type==null||category==null||(!type.active&&!type.id.equals(e.assetTypeId))||(!category.active&&!category.id.equals(e.damageCategoryId))||(category.assetTypeId!=null&&!category.assetTypeId.equals(type.id))) throw new WebApplicationException("Catálogo inexistente o inactivo",422);
+        evidence(e,input.evidence,false);
         e.assetId=input.assetId;e.assetTypeId=type.id;e.assetType=type.name;e.damageCategoryId=category.id;e.damageLevel=category.damageLevel;
         e.evaluatedAt=input.evaluatedAt;e.location=input.location;e.latitude=input.latitude;e.longitude=input.longitude;
         e.geometry=input.geometry==null?null:input.geometry.toString();e.description=input.description;
@@ -66,6 +78,7 @@ public class EvaluationStore {
         var e=writable(id,version,organization);
         if(e.status!=EvaluationStatus.Draft||target==EvaluationStatus.Draft||target==null)throw new WebApplicationException(422);
         if(target==EvaluationStatus.Validated&&e.disasterId==null)throw new WebApplicationException("Asocie un desastre antes de validar",422);
+        if(target==EvaluationStatus.Validated)evidence(e,references(e.evidence),true);
         e.status=target;e.updatedAt=OffsetDateTime.now(ZoneOffset.UTC);em.flush();record(e,actor,target.name(),reason);return Views.evaluation(e);
     }
     public Map<String,Object> revise(UUID id,long version,EvaluationInput input,String organization,String actor) {
