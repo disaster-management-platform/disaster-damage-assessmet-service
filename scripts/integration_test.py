@@ -73,3 +73,36 @@ assert call('/api/evaluaciones/catalogos/tipos-activo','POST',{'id':catalog_id,'
 assert call('/api/evaluaciones/catalogos/tipos-activo','POST',{'id':catalog_id,'name':'Configurable'},admin)[0]==201
 assert call('/api/evaluaciones/catalogos/tipos-activo/'+catalog_id+'/desactivar','PUT',{},admin)[0] in (200,204)
 print('PASS: JWT authorization, preliminary Draft, idempotency/concurrency, versioned edits, immutable receipt, real Disaster association, full reconstruction snapshot, map, catalogs and validation')
+
+# Lifecycle and revisions keep one current evaluation per asset and immutable history.
+path='/api/evaluaciones/'+evaluation_id
+change={'status':'Validated','expectedVersion':linked['version'],'reason':'Inspección aprobada'}
+assert call(path+'/estado','PUT',change,auth)[0]==403
+status,validated=call(path+'/estado','PUT',change,admin);assert status==200,(status,validated)
+assert validated['status']=='Validated'
+assert call(path,'PUT',{**payload,'disasterId':disaster_id,'expectedVersion':validated['version']},auth)[0]==422
+assert call(path,bearer=token(organization='another-org'))[0]==404
+assert call(path,bearer=token(permitted=disaster_id+1))[0]==403
+assert call(path,bearer=token(role='reconstruction.read',organization='reconstruction-org'))[0]==200
+revised={**payload,'disasterId':disaster_id,'description':'Nueva inspección','expectedVersion':validated['version']}
+status,current=call(path+'/revisiones','POST',revised,auth);assert status==200,(status,current)
+assert current['evaluationId']==evaluation_id and current['revision']==2 and current['status']=='Draft'
+assert call(path+'/revisiones','POST',revised,auth)[0]==409
+status,rejected=call(path+'/estado','PUT',{'status':'Rejected','expectedVersion':current['version'],'reason':'Evidencia insuficiente'},admin)
+assert status==200 and rejected['status']=='Rejected',(status,rejected)
+status,current=call(path+'/revisiones','POST',{**revised,'expectedVersion':rejected['version']},auth);assert status==200
+status,current=call(path+'/estado','PUT',{'status':'Validated','expectedVersion':current['version'],'reason':'Revisión completa'},admin);assert status==200
+status,history=call(path+'/historial',bearer=auth);assert status==200
+assert [h['version'] for h in history]==list(range(current['version']+1))
+assert all(h['actor']=='evaluator-test' and h['recordedAt'] for h in history)
+assert json.loads(history[0]['snapshot'])==original
+assert any(json.loads(h['snapshot'])['status']=='Rejected' for h in history)
+assert call('/api/evaluaciones','POST',payload,auth,identity)==(200,original)
+scoped='category-'+uuid.uuid4().hex
+assert call('/api/evaluaciones/catalogos/categorias-dano','POST',{'id':scoped,'name':'Specific','damageLevel':'Severe','assetTypeId':'Housing'},admin)[0]==201
+assert call('/api/evaluaciones','POST',{**payload,'damageCategoryId':scoped},auth,str(uuid.uuid4()))[0]==422
+for state,level in [('Draft','Severe'),('Rejected','Severe'),('Validated','None')]:
+    status,row=call('/api/evaluaciones','POST',{**payload,'disasterId':disaster_id,'assetId':str(uuid.uuid4()),'damageCategoryId':level},auth,str(uuid.uuid4()));assert status==201
+    if state!='Draft':assert call('/api/evaluaciones/'+row['evaluationId']+'/estado','PUT',{'status':state,'expectedVersion':row['version'],'reason':'Lifecycle test'},admin)[0]==200
+print('PASS: authorized lifecycle, immutable snapshots, functional revisions, current snapshot, scoped classification, organization/disaster isolation')
+print(json.dumps({'disasterId':disaster_id,'evaluationId':evaluation_id,'revision':current['revision']}))

@@ -5,5 +5,6 @@ public class DamageCategory {
     @Id @Column(length=120) public String id;
     @Column(nullable=false,length=200,updatable=false) public String name;
     @Enumerated(EnumType.STRING) @Column(nullable=false,length=20,updatable=false) public DamageLevel damageLevel;
+    @Column(length=120,updatable=false) public String assetTypeId;
     @Column(nullable=false) public boolean active = true;
 }

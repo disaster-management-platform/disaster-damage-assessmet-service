@@ -15,7 +15,9 @@ public class DisasterReader {
         String base=System.getenv("DISASTERS_BASE_URL");
         if(base==null)throw new WebApplicationException("Servicio de desastres no configurado",503);
         try {
-            var response=client.send(HttpRequest.newBuilder(URI.create(base.replaceAll("/$","")+"/api/desastres/"+id)).timeout(Duration.ofSeconds(5)).GET().build(),HttpResponse.BodyHandlers.ofString());
+            var request=HttpRequest.newBuilder(URI.create(base.replaceAll("/$","")+"/api/desastres/"+id)).timeout(Duration.ofSeconds(5)).GET();
+            String token=System.getenv("DISASTERS_BEARER_TOKEN");if(token!=null&&!token.isBlank())request.header("Authorization","Bearer "+token);
+            var response=client.send(request.build(),HttpResponse.BodyHandlers.ofString());
             if(response.statusCode()==404)throw new WebApplicationException("Desastre inexistente",422);
             if(response.statusCode()!=200)throw new WebApplicationException("Servicio de desastres no disponible",503);
             var body=jakarta.json.Json.createReader(new java.io.StringReader(response.body())).readObject();

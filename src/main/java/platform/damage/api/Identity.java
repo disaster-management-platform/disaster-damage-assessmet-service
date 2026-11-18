@@ -15,6 +15,8 @@ public class Identity {
         if (!(value instanceof String text) || text.isBlank() || text.length()>200) throw new WebApplicationException(403);
         return text;
     }
+    public boolean readsAcrossOrganizations() { return token.getGroups().contains("reconstruction.read")||token.getGroups().contains("reconstruction.write"); }
+    public boolean organizationVisible(String organization) { return organization.equals(organization())||readsAcrossOrganizations(); }
     private boolean allows(Object value,Integer id) {
         try { return Integer.parseInt((value instanceof jakarta.json.JsonString text ? text.getString() : String.valueOf(value)).trim()) == id; }
         catch (NumberFormatException error) { return false; }

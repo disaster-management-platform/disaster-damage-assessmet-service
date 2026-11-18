@@ -14,14 +14,14 @@ public class EvaluationsResource {
     @EJB EvaluationStore store;
     @EJB EvaluationService service;
     @Inject Identity identity;
-    private Evaluation visible(UUID id) { var e=store.get(id);if(e==null)throw new WebApplicationException(404);identity.disaster(e.disasterId);if(e.disasterId==null&&!e.organization.equals(identity.organization()))throw new WebApplicationException(404);return e; }
+    private Evaluation visible(UUID id) { var e=store.get(id);if(e==null)throw new WebApplicationException(404);identity.disaster(e.disasterId);if(!e.organization.equals(identity.organization())&&(e.disasterId==null||!identity.readsAcrossOrganizations()))throw new WebApplicationException(404);return e; }
     @GET @Path("/openapi") @Produces("application/vnd.oai.openapi+json")
     public String openapi() throws java.io.IOException {
         try(var stream=getClass().getResourceAsStream("/META-INF/openapi.json")) { return new String(stream.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8); }
     }
     @GET public Object list(@QueryParam("disasterId") Integer id) {
         if(id==null||id<=0)throw new WebApplicationException(400);identity.disaster(id);
-        return Map.of("schemaVersion",1,"disasterId",id,"evaluations",store.list(id).stream().map(Views::evaluation).toList());
+        return Map.of("schemaVersion",1,"disasterId",id,"evaluations",store.list(id).stream().filter(e->identity.organizationVisible(e.organization)).map(Views::evaluation).toList());
     }
     @GET @Path("/{id}") public Object get(@PathParam("id") UUID id) { return Views.evaluation(visible(id)); }
     @GET @Path("/mapa") public Object map(@QueryParam("disasterId") Integer id) { return list(id); }
@@ -30,17 +30,26 @@ public class EvaluationsResource {
         if(input==null)throw new WebApplicationException(400);identity.disaster(input.disasterId);
         var result=service.create(request,input,identity.actor(),identity.organization());return Response.status(result.created()?201:200).entity(result.body()).build();
     }
-    @PUT @Path("/{id}") @RolesAllowed({"damage.write","damage.admin"}) public Object edit(@PathParam("id") UUID id,EvaluationInput input) { visible(id);return service.edit(id,input,identity.organization()); }
+    @PUT @Path("/{id}") @RolesAllowed({"damage.write","damage.admin"}) public Object edit(@PathParam("id") UUID id,EvaluationInput input) { visible(id);return service.edit(id,input,identity.organization(),identity.actor()); }
+    public record Transition(EvaluationStatus status,Long expectedVersion,String reason) { }
+    @PUT @Path("/{id}/estado") @RolesAllowed("damage.admin") public Object transition(@PathParam("id") UUID id,Transition input) {
+        visible(id);if(input==null||input.expectedVersion()==null||input.expectedVersion()<0||input.status()==null||input.reason()==null||input.reason().isBlank()||input.reason().length()>2000)throw new WebApplicationException(400);
+        return store.transition(id,input.expectedVersion(),input.status(),input.reason(),identity.organization(),identity.actor());
+    }
+    @POST @Path("/{id}/revisiones") @RolesAllowed({"damage.write","damage.admin"}) public Object revise(@PathParam("id") UUID id,EvaluationInput input) {
+        visible(id);return service.revise(id,input,identity.organization(),identity.actor());
+    }
+    @GET @Path("/{id}/historial") public Object history(@PathParam("id") UUID id) { visible(id);return store.history(id); }
     public record Association(Integer disasterId,Long expectedVersion) { }
     @PUT @Path("/{id}/desastre") @RolesAllowed({"damage.write","damage.admin"}) public Object associate(@PathParam("id") UUID id,Association input) {
         visible(id);if(input==null||input.disasterId()==null||input.expectedVersion()==null)throw new WebApplicationException(400);
-        identity.disaster(input.disasterId());return service.associate(id,input.expectedVersion(),input.disasterId(),identity.organization());
+        identity.disaster(input.disasterId());return service.associate(id,input.expectedVersion(),input.disasterId(),identity.organization(),identity.actor());
     }
     @GET @Path("/catalogos") public Object catalogs() { identity.actor();identity.organization();return store.catalogs(); }
-    public record CatalogInput(String id,String name,DamageLevel damageLevel) { }
+    public record CatalogInput(String id,String name,DamageLevel damageLevel,String assetTypeId) { }
     private void catalog(CatalogInput input) { identity.actor();identity.organization();if(input==null||input.id()==null||!input.id().matches("[A-Za-z0-9_.:-]{1,120}")||input.name()==null||input.name().isBlank()||input.name().length()>200)throw new WebApplicationException(400); }
     @POST @Path("/catalogos/tipos-activo") @RolesAllowed("damage.admin") public Response addType(CatalogInput input) { catalog(input);return Response.status(201).entity(store.addType(input.id(),input.name())).build(); }
-    @POST @Path("/catalogos/categorias-dano") @RolesAllowed("damage.admin") public Response addCategory(CatalogInput input) { catalog(input);if(input.damageLevel()==null)throw new WebApplicationException(400);return Response.status(201).entity(store.addCategory(input.id(),input.name(),input.damageLevel())).build(); }
+    @POST @Path("/catalogos/categorias-dano") @RolesAllowed("damage.admin") public Response addCategory(CatalogInput input) { catalog(input);if(input.damageLevel()==null)throw new WebApplicationException(400);return Response.status(201).entity(store.addCategory(input.id(),input.name(),input.damageLevel(),input.assetTypeId())).build(); }
     @PUT @Path("/catalogos/tipos-activo/{id}/desactivar") @RolesAllowed("damage.admin") public void deactivateType(@PathParam("id") String id) { identity.organization();store.deactivateType(id); }
     @PUT @Path("/catalogos/categorias-dano/{id}/desactivar") @RolesAllowed("damage.admin") public void deactivateCategory(@PathParam("id") String id) { identity.organization();store.deactivateCategory(id); }
 }

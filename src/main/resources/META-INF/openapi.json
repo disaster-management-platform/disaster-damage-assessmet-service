@@ -184,7 +184,7 @@
         ]
       },
       "put": {
-        "summary": "Editar Draft con expectedVersion; revision permanece 1",
+        "summary": "Editar Draft con expectedVersion, conservando la revisión funcional",
         "responses": {
           "200": {
             "description": "Éxito o repetición idempotente",
@@ -683,6 +683,212 @@
         "parameters": [],
         "security": []
       }
+    },
+    "/api/evaluaciones/{id}/estado": {
+      "put": {
+        "summary": "Validar o rechazar Draft: requiere damage.admin y justificación",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evaluation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Transition"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/evaluaciones/{id}/revisiones": {
+      "post": {
+        "summary": "Crear una revisión Draft a partir de Validated o Rejected",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evaluation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/evaluaciones/{id}/historial": {
+      "get": {
+        "summary": "Snapshots históricos inmutables con actor, fecha, acción, revisión y versión",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "revision": {
+                        "type": "integer"
+                      },
+                      "version": {
+                        "type": "integer"
+                      },
+                      "actor": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "recordedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "action": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "snapshot": {
+                        "type": "string",
+                        "description": "JSON inmutable de la evaluación en esa versión"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -989,6 +1195,11 @@
           "active": {
             "type": "boolean",
             "readOnly": true
+          },
+          "assetTypeId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Categoría limitada a este tipo; null conserva alcance global"
           }
         }
       },
@@ -1006,6 +1217,33 @@
             "items": {
               "$ref": "#/components/schemas/CatalogInput"
             }
+          }
+        }
+      },
+      "Transition": {
+        "type": "object",
+        "required": [
+          "status",
+          "expectedVersion",
+          "reason"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "Validated",
+              "Rejected"
+            ]
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
           }
         }
       }

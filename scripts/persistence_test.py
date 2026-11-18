@@ -56,3 +56,30 @@ assert call(0,path)==(200,current)
 assert call(1,'/api/evaluaciones','POST',invalid,str(uuid.uuid4()))[0]==422
 print('PASS: two instances, concurrent idempotency, optimistic locking, immutable receipt, monetary precision, failed update rollback')
 print(json.dumps({'evaluationId':original['evaluationId'],'current':current,'identity':identity,'payload':payload,'original':original}))
+
+if os.environ.get('DAMAGE_TEST_POSTGRES_CONNECTION'):
+    import psycopg2
+    from psycopg2.extensions import parse_dsn
+    connection=os.environ['DAMAGE_TEST_POSTGRES_CONNECTION']
+    assert parse_dsn(connection).get('host') in ('localhost','127.0.0.1'), 'Local PostgreSQL only'
+    database=psycopg2.connect(connection);database.autocommit=True;query=database.cursor()
+    query.execute("CREATE FUNCTION assessments.fail_history_test() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test rollback' USING ERRCODE='23514'; END $$; CREATE TRIGGER fail_history_test BEFORE INSERT ON assessments.evaluation_history FOR EACH ROW WHEN (NEW.action='Edited') EXECUTE FUNCTION assessments.fail_history_test()")
+    try:
+        assert call(0,path,'PUT',{**payload,'expectedVersion':current['version'],'description':'Must roll back'},None)[0]==500
+    finally:
+        query.execute('DROP TRIGGER fail_history_test ON assessments.evaluation_history; DROP FUNCTION assessments.fail_history_test()')
+    assert call(1,path)==(200,current)
+    assert len(call(1,path+'/historial')[1])==2
+    database.autocommit=False
+    query.execute("SELECT id FROM assessments.asset_types WHERE id='Bridge' FOR UPDATE")
+    try:
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            futures=[pool.submit(call,1,'/api/evaluaciones','POST',{**payload,'assetId':str(uuid.uuid4())},str(uuid.uuid4())) for _ in range(6)]
+            time.sleep(2);database.rollback();results=[f.result() for f in futures]
+        assert all(status in (201,503) for status,_ in results),results
+        assert any(status==503 for status,_ in results),results
+    finally:
+        database.rollback();database.close()
+    assert call(1,'/api/evaluaciones/diagnostico/ready')[0]==200
+    assert call(1,'/api/evaluaciones','POST',{**payload,'assetId':str(uuid.uuid4())},str(uuid.uuid4()))[0]==201
+    print('PASS: history failure rolls back entity/version, pool exhaustion returns 503 and recovers')

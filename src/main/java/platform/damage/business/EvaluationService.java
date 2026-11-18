@@ -42,11 +42,15 @@ public class EvaluationService {
         if(!jakarta.json.Json.createReader(new java.io.StringReader(e.creationCommand)).readObject().equals(jakarta.json.Json.createReader(new java.io.StringReader(command)).readObject()))throw new WebApplicationException("Idempotency-Key reutilizada con otro contenido",409);
         return new Creation(e.creationResult,false);
     }
-    public Map<String,Object> edit(UUID id,EvaluationInput input,String organization) {
+    public Map<String,Object> edit(UUID id,EvaluationInput input,String organization,String actor) {
         validate(input);if(input.expectedVersion==null||input.expectedVersion<0)throw new WebApplicationException(400);
-        return store.update(id,input.expectedVersion,input,organization);
+        return store.update(id,input.expectedVersion,input,organization,actor);
     }
-    public Map<String,Object> associate(UUID id,long version,int disasterId,String organization) {
-        if(disasterId<=0||version<0)throw new WebApplicationException(400);disasters.require(disasterId);return store.associate(id,version,disasterId,organization);
+    public Map<String,Object> revise(UUID id,EvaluationInput input,String organization,String actor) {
+        validate(input);if(input.expectedVersion==null||input.expectedVersion<0)throw new WebApplicationException(400);
+        return store.revise(id,input.expectedVersion,input,organization,actor);
+    }
+    public Map<String,Object> associate(UUID id,long version,int disasterId,String organization,String actor) {
+        if(disasterId<=0||version<0)throw new WebApplicationException(400);disasters.require(disasterId);return store.associate(id,version,disasterId,organization,actor);
     }
 }

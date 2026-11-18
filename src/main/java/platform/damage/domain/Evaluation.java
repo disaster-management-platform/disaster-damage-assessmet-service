@@ -23,8 +23,8 @@ public class Evaluation {
     @Column(nullable=false,length=2000) public String description;
     @Column(nullable=false,columnDefinition="text") public String evidence;
     @Column(nullable=false,precision=19,scale=2) public BigDecimal budget;
-    @Enumerated(EnumType.STRING) @Column(nullable=false,length=20,updatable=false) public EvaluationStatus status = EvaluationStatus.Draft;
-    @Column(nullable=false,updatable=false) public long revision = 1;
+    @Enumerated(EnumType.STRING) @Column(nullable=false,length=20) public EvaluationStatus status = EvaluationStatus.Draft;
+    @Column(nullable=false) public long revision = 1;
     @Version public long version;
     @Column(nullable=false,updatable=false) public OffsetDateTime createdAt;
     @Column(nullable=false) public OffsetDateTime updatedAt;
