@@ -8,14 +8,22 @@ Servicio Java 21, Jakarta EE 11 Full Platform y Maven, validado en WildFly 42.0.
 mvn package
 ```
 
-Instale el driver PostgreSQL JDBC 42.7.7 en WildFly como despliegue `postgresql-42.7.7.jar`. Ejecute `migrations/V001__damage_assessment.sql` una sola vez con credenciales administrativas antes de desplegar el WAR. El arranque no crea ni modifica tablas. El historial se conserva en `damage_assessment.schema_history`.
+Instale el driver PostgreSQL JDBC 42.7.7 en WildFly como despliegue `postgresql-42.7.7.jar`. Ejecute las migraciones SQL explícitamente con credenciales administrativas, fuera del arranque de WildFly. Para instalaciones nuevas aplique V001 y después V002; si V001 ya está aplicada, ejecute únicamente `migrations/V002__assessments_schema.sql`. V002 renombra el esquema anterior sin copiar ni recrear tablas y puede repetirse sin modificar datos. Detenga las instancias de Daños antes de cambiar el esquema y despliegue después este WAR. El arranque valida el esquema mediante Hibernate y nunca crea ni modifica tablas. El historial se conserva en `assessments.schema_history`.
 
 El DataSource JNDI `java:jboss/datasources/DamageAssessment` es administrado por el contenedor. `server/datasource.cli` configura JTA, pool máximo de 8 conexiones y timeouts acotados, usando variables externas:
 
 - `DAMAGE_DB_HOST`, `DAMAGE_DB_PORT` (5432), `DAMAGE_DB_NAME` (postgres).
 - `DAMAGE_DB_USER`, `DAMAGE_DB_PASSWORD`: rol exclusivo de este servicio; nunca la cuenta administrativa.
-- `DAMAGE_DB_CA`: ruta de CA local, fuera del repositorio. JDBC utiliza `sslmode=verify-full`.
+- `DAMAGE_DB_CA`: ruta de CA local, fuera del repositorio. JDBC utiliza obligatoriamente `sslmode=verify-full`; host, puerto y nombre forman la URL externa sin permitir desactivar TLS.
+- `DAMAGE_DB_POOL_MIN` (0), `DAMAGE_DB_POOL_MAX` (8), `DAMAGE_DB_POOL_WAIT_MS` (5000). Cada réplica tiene su propio pool: dimensione la suma dentro del presupuesto PostgreSQL del dominio.
+- `DAMAGE_DB_CONNECT_TIMEOUT` (5), `DAMAGE_DB_SOCKET_TIMEOUT` (30), `DAMAGE_DB_QUERY_TIMEOUT` (10), en segundos. WildFly valida las conexiones al obtenerlas y descarta conexiones rotas mediante los componentes PostgreSQL de IronJacamar.
 - `DISASTERS_BASE_URL`: URL del servicio propietario de Desastres. Timeout de conexión 3 segundos y de solicitud 5 segundos; no hay transacciones JTA abiertas durante esa llamada.
+
+En el proyecto Supabase existente se utiliza Session Pooler en el puerto 5432: permite conectividad IPv4 y mantiene la sesión y los prepared statements necesarios para JDBC/JPA. No se utiliza transaction pooling ni un pool adicional en la aplicación; WildFly administra las conexiones persistentes. Se conserva la posibilidad de conexión directa si la red dispone de IPv6.
+
+Antes de configurar el DataSource, cree de forma segura el login exclusivo `damage_assessment_api`, sin privilegios administrativos ni membresías de otros dominios. Con una conexión administrativa ejecute `server/permissions.sql`: asigna la propiedad de `assessments` al rol NOLOGIN `damage_assessment_migrator`, permite al login solo SELECT/INSERT y UPDATE sobre columnas autorizadas, y deja sin acceso a PUBLIC, anon y authenticated. El login no puede borrar tablas, modificar recibos originales ni consultar el historial de migraciones. Las tablas/secuencias futuras permanecen privadas; sus permisos de ejecución deben concederse explícitamente cuando una migración los requiera. Las futuras migraciones deben ejecutarse con `SET ROLE damage_assessment_migrator`; el rol de ejecución nunca recibe esa membresía. El esquema no debe añadirse a los esquemas expuestos por Data API.
+
+Conserve fuera de Git un backup consistente previo al cambio y los ACL originales. V002 es transaccional: un error revierte el cambio de nombre. Para recuperación posterior, detenga Daños y coordine un rollback del despliegue y del nombre del esquema; no restaure ni sobrescriba otros dominios.
 
 Con WildFly Full ya iniciado y las variables externas cargadas en el proceso del servidor:
 
@@ -84,6 +92,16 @@ python3 scripts/integration_test.py
 ```
 
 El servidor de prueba debe confiar exclusivamente en la clave pública de ese par, issuer `https://identity.test` y audiencia `platform`. La clave privada se genera fuera del repositorio y se utiliza solo para firmar identidades del escenario local. Este procedimiento no habilita un bypass de autenticación en producción. El script rechaza destinos remotos y crea datos de prueba; nunca debe apuntarse al proyecto Supabase. También admite una URL local de YARP para comprobar el enrutamiento.
+
+La regresión de persistencia entre dos instancias locales se ejecuta con:
+
+```sh
+DAMAGE_TEST_URLS=http://127.0.0.1:8170,http://127.0.0.1:8270 \
+DAMAGE_TEST_KEY=/ruta/privada/de/pruebas.pem \
+python3 scripts/persistence_test.py
+```
+
+Ambas instancias deben compartir el PostgreSQL aislado y la configuración JWT de pruebas. La prueba comprueba creación concurrente sin duplicados, concurrencia optimista, recibo original, precisión monetaria y rollback de una edición rechazada. No apunta a Supabase.
 
 En YARP configure externamente `ReverseProxy__Clusters__damage-assessment-api__Destinations__local__Address` con la URL del Application Server. Las rutas son explícitas, sin fallback a operaciones futuras. La ausencia de destinos de Daños no impide atender otros servicios.
 

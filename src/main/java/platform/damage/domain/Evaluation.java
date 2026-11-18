@@ -3,7 +3,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.math.BigDecimal;
 import jakarta.persistence.*;
-@Entity @Table(name="evaluations", schema="damage_assessment")
+@Entity @Table(name="evaluations", schema="assessments")
 public class Evaluation {
     @Id public UUID evaluationId;
     @Column(nullable=false,unique=true,updatable=false) public UUID clientRequestId;

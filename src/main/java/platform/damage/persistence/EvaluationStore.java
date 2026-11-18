@@ -55,5 +55,5 @@ public class EvaluationStore {
     }
     public void deactivateType(String id) { var e=em.find(AssetType.class,id);if(e==null)throw new WebApplicationException(404);e.active=false; }
     public void deactivateCategory(String id) { var e=em.find(DamageCategory.class,id);if(e==null)throw new WebApplicationException(404);e.active=false; }
-    public boolean ready() { em.createNativeQuery("select 1 from damage_assessment.evaluations limit 1").getResultList();return true; }
+    public boolean ready() { em.createNativeQuery("select 1 from assessments.evaluations limit 1").getResultList();return true; }
 }
