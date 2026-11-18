@@ -9,7 +9,7 @@ import jakarta.resource.ResourceException;
 import java.util.Map;
 @Provider
 public class Errors implements ExceptionMapper<Exception> {
-    public Response toResponse(Exception error) {
+    public static int status(Exception error) {
         int status=500;
         for(Throwable cause=error;cause!=null;cause=cause.getCause()) {
             if(cause instanceof WebApplicationException web) {status=web.getResponse().getStatus();break;}
@@ -20,6 +20,10 @@ public class Errors implements ExceptionMapper<Exception> {
                 else if(sql instanceof SQLTransientException||sql.getSQLState()!=null&&(sql.getSQLState().startsWith("08")||java.util.Set.of("53300","57P01","57P02","57P03").contains(sql.getSQLState())))status=503;
             }
         }
+        return status;
+    }
+    public Response toResponse(Exception error) {
+        int status=status(error);
         return Response.status(status).type(MediaType.APPLICATION_JSON).entity(Map.of("status",status,"detail",switch(status) {
             case 400 -> "Solicitud inválida";case 401 -> "Autenticación requerida";case 403 -> "Acceso insuficiente";
             case 404 -> "Recurso inexistente o no visible";case 409 -> "Conflicto de identidad o versión";

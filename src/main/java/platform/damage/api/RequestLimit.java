@@ -17,8 +17,9 @@ public class RequestLimit implements ContainerRequestFilter {
             });return;
         }
         if(request.hasEntity()) {
-            byte[] body=request.getEntityStream().readNBytes(262145);
-            if(body.length>262144)throw new WebApplicationException(413);
+            int maximum=request.getUriInfo().getPath().equals("evaluaciones/batch")?1048576:262144;
+            byte[] body=request.getEntityStream().readNBytes(maximum+1);
+            if(body.length>maximum)throw new WebApplicationException(413);
             request.setEntityStream(new ByteArrayInputStream(body));
         }
     }
