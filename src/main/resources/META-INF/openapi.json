@@ -1,0 +1,1021 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Damage Assessment API",
+    "version": "1.0.0"
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/evaluaciones": {
+      "get": {
+        "summary": "Snapshot completo actual por desastre",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "parameters": [
+          {
+            "name": "disasterId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "Crear Draft; actor y organización del JWT",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evaluation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          },
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evaluation"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/evaluaciones/{id}": {
+      "get": {
+        "summary": "Consultar detalle autorizado",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evaluation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "put": {
+        "summary": "Editar Draft con expectedVersion; revision permanece 1",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evaluation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/evaluaciones/{id}/desastre": {
+      "put": {
+        "summary": "Asociar preliminar a desastre existente",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evaluation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Association"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/evaluaciones/mapa": {
+      "get": {
+        "summary": "Vista completa con coordenadas y GeoJSON",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "parameters": [
+          {
+            "name": "disasterId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/evaluaciones/catalogos": {
+      "get": {
+        "summary": "Catálogos; incluye elementos inactivos para referencias históricas",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalogs"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/evaluaciones/catalogos/tipos-activo": {
+      "post": {
+        "summary": "Crear catálogo; rol damage.admin",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogInput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          },
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogInput"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogInput"
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/evaluaciones/catalogos/tipos-activo/{catalogId}/desactivar": {
+      "put": {
+        "summary": "Desactivar sin eliminar referencias",
+        "responses": {
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          },
+          "204": {
+            "description": "Desactivado; sin contenido"
+          }
+        },
+        "parameters": [
+          {
+            "name": "catalogId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/evaluaciones/catalogos/categorias-dano": {
+      "post": {
+        "summary": "Crear catálogo; rol damage.admin",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogInput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          },
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogInput"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogInput"
+              }
+            }
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/evaluaciones/catalogos/categorias-dano/{catalogId}/desactivar": {
+      "put": {
+        "summary": "Desactivar sin eliminar referencias",
+        "responses": {
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          },
+          "204": {
+            "description": "Desactivado; sin contenido"
+          }
+        },
+        "parameters": [
+          {
+            "name": "catalogId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/evaluaciones/diagnostico/live": {
+      "get": {
+        "summary": "Diagnóstico mínimo sin datos de negocio",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente"
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "parameters": [],
+        "security": []
+      }
+    },
+    "/api/evaluaciones/diagnostico/ready": {
+      "get": {
+        "summary": "Diagnóstico mínimo sin datos de negocio",
+        "responses": {
+          "200": {
+            "description": "Éxito o repetición idempotente"
+          },
+          "400": {
+            "description": "Solicitud inválida"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "403": {
+            "description": "Acceso insuficiente"
+          },
+          "404": {
+            "description": "No encontrado o no visible"
+          },
+          "409": {
+            "description": "Conflicto de identidad, activo o versión"
+          },
+          "413": {
+            "description": "Cuerpo mayor de 256 KiB"
+          },
+          "422": {
+            "description": "Regla de negocio incumplida"
+          },
+          "503": {
+            "description": "Dependencia no disponible"
+          }
+        },
+        "parameters": [],
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EvaluationInput": {
+        "type": "object",
+        "required": [
+          "assetId",
+          "assetTypeId",
+          "damageCategoryId",
+          "evaluatedAt",
+          "location",
+          "description",
+          "evidence",
+          "budget"
+        ],
+        "properties": {
+          "disasterId": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1
+          },
+          "assetId": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "assetTypeId": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "damageCategoryId": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "evaluatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90,
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180,
+            "nullable": true
+          },
+          "geometry": {
+            "type": "object",
+            "nullable": true,
+            "description": "GeoJSON Point, Polygon o MultiPolygon WGS84; máximo 2000 posiciones y 64 KiB."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "evidence": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "budget": {
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "description": "COP; hasta 17 posiciones enteras y 2 decimales."
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Obligatorio en PUT; no se utiliza en POST."
+          }
+        },
+        "example": {
+          "disasterId": null,
+          "assetId": "bridge-001",
+          "assetTypeId": "Bridge",
+          "damageCategoryId": "Severe",
+          "evaluatedAt": "2026-11-18T00:00:00Z",
+          "location": "Zona Norte",
+          "latitude": 4.7,
+          "longitude": -74,
+          "geometry": null,
+          "description": "Daño estructural",
+          "evidence": [],
+          "budget": 150000.0
+        }
+      },
+      "Evaluation": {
+        "type": "object",
+        "required": [
+          "evaluationId",
+          "assetId",
+          "assetType",
+          "evaluatedAt",
+          "evaluator",
+          "organization",
+          "location",
+          "damageLevel",
+          "description",
+          "evidence",
+          "status",
+          "budget",
+          "revision",
+          "version"
+        ],
+        "properties": {
+          "disasterId": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1
+          },
+          "assetId": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "assetTypeId": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "damageCategoryId": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "evaluatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "latitude": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90,
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180,
+            "nullable": true
+          },
+          "geometry": {
+            "type": "object",
+            "nullable": true,
+            "description": "GeoJSON Point, Polygon o MultiPolygon WGS84; máximo 2000 posiciones y 64 KiB."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "evidence": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "budget": {
+            "type": "number",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "description": "COP; hasta 17 posiciones enteras y 2 decimales."
+          },
+          "evaluationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assetType": {
+            "type": "string"
+          },
+          "evaluator": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string"
+          },
+          "damageLevel": {
+            "type": "string",
+            "enum": [
+              "None",
+              "Minor",
+              "Moderate",
+              "Severe",
+              "Destroyed"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Draft",
+              "Validated",
+              "Rejected"
+            ],
+            "description": "Esta iteración solo crea y edita Draft."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Snapshot": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "disasterId",
+          "evaluations"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "disasterId": {
+            "type": "integer"
+          },
+          "evaluations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evaluation"
+            }
+          }
+        }
+      },
+      "Association": {
+        "type": "object",
+        "required": [
+          "disasterId",
+          "expectedVersion"
+        ],
+        "properties": {
+          "disasterId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "CatalogInput": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.:-]{1,120}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "damageLevel": {
+            "type": "string",
+            "enum": [
+              "None",
+              "Minor",
+              "Moderate",
+              "Severe",
+              "Destroyed"
+            ],
+            "description": "Obligatorio en categoría."
+          },
+          "active": {
+            "type": "boolean",
+            "readOnly": true
+          }
+        }
+      },
+      "Catalogs": {
+        "type": "object",
+        "properties": {
+          "assetTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogInput"
+            }
+          },
+          "damageCategories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogInput"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

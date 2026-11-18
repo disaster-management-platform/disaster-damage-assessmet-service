@@ -1,0 +1,90 @@
+# Damage Assessment
+
+Servicio Java 21, Jakarta EE 11 Full Platform y Maven, validado en WildFly 42.0.0.Final. Un único WAR contiene API JAX-RS/JSON-B, BLL mediante Stateless EJB, CDI, Jakarta Validation y persistencia JPA/JTA. No contiene vistas ni dependencias de presentación.
+
+## Ejecución
+
+```sh
+mvn package
+```
+
+Instale el driver PostgreSQL JDBC 42.7.7 en WildFly como despliegue `postgresql-42.7.7.jar`. Ejecute `migrations/V001__damage_assessment.sql` una sola vez con credenciales administrativas antes de desplegar el WAR. El arranque no crea ni modifica tablas. El historial se conserva en `damage_assessment.schema_history`.
+
+El DataSource JNDI `java:jboss/datasources/DamageAssessment` es administrado por el contenedor. `server/datasource.cli` configura JTA, pool máximo de 8 conexiones y timeouts acotados, usando variables externas:
+
+- `DAMAGE_DB_HOST`, `DAMAGE_DB_PORT` (5432), `DAMAGE_DB_NAME` (postgres).
+- `DAMAGE_DB_USER`, `DAMAGE_DB_PASSWORD`: rol exclusivo de este servicio; nunca la cuenta administrativa.
+- `DAMAGE_DB_CA`: ruta de CA local, fuera del repositorio. JDBC utiliza `sslmode=verify-full`.
+- `DISASTERS_BASE_URL`: URL del servicio propietario de Desastres. Timeout de conexión 3 segundos y de solicitud 5 segundos; no hay transacciones JTA abiertas durante esa llamada.
+
+Con WildFly Full ya iniciado y las variables externas cargadas en el proceso del servidor:
+
+```sh
+mvn dependency:get -Dartifact=org.postgresql:postgresql:42.7.7
+"$WILDFLY_HOME/bin/jboss-cli.sh" --connect --command="deploy $HOME/.m2/repository/org/postgresql/postgresql/42.7.7/postgresql-42.7.7.jar"
+"$WILDFLY_HOME/bin/jboss-cli.sh" --connect --file=server/datasource.cli
+"$WILDFLY_HOME/bin/jboss-cli.sh" --connect --command="deploy target/damage-assessment.war"
+```
+
+ El contexto HTTP es `/`; no instale este WAR en el mismo contexto raíz de otra aplicación. No se incluyen credenciales, certificados ni binarios. El servidor de aplicaciones se obtiene y configura fuera del repositorio.
+
+Configure externamente `mp.jwt.verify.issuer`, `mp.jwt.verify.publickey.location` (JWKS HTTPS o clave pública confiable) y `mp.jwt.verify.audiences`, mediante MicroProfile Config, variables de entorno o propiedades JVM. No se proporcionan claves predeterminadas ni mecanismos de autenticación propios. SmallRye JWT/WildFly verifica firma y token; `smallrye.jwt.path.groups=role` utiliza el claim existente `role`. El JWT debe incluir `iat` y `exp` conforme a MP-JWT, además de issuer y audiencia configurados. Se requieren `sub` y `organization_id`; el acceso a un desastre requiere `disaster_id`, escalar o array. No se confía en encabezados de identidad ni en actor/organización enviados en el cuerpo.
+
+Roles: `damage.read`, `damage.write`, `damage.admin`. `reconstruction.read` y `reconstruction.write` pueden consultar snapshots autorizados. Creación, edición y asociación requieren escritura de Daños; los catálogos requieren `damage.admin`. Los preliminares solo son visibles a su organización. La lectura de un desastre autorizado ofrece la vista completa entre organismos; la modificación exige además pertenecer a la organización evaluadora. Los diagnósticos anónimos solo revelan UP/DOWN.
+
+## Contratos
+
+OpenAPI 3.0.3 con esquemas y ejemplos se conserva en `src/main/resources/META-INF/openapi.json` y se consulta autenticado en `GET /api/evaluaciones/openapi`.
+
+| Método | Ruta | Semántica |
+|---|---|---|
+| GET | `/api/evaluaciones?disasterId={id}` | `{schemaVersion:1, disasterId, evaluations:[...]}`, snapshot completo, sin paginación. |
+| GET | `/api/evaluaciones/{id}` | Detalle autorizado con version y fechas. |
+| POST | `/api/evaluaciones` | Idempotency-Key UUID obligatorio; 201 nuevo Draft, 200 repetición original, 409 contenido diferente. |
+| PUT | `/api/evaluaciones/{id}` | Edita Draft con expectedVersion; no cambia assetId ni asociación. |
+| PUT | `/api/evaluaciones/{id}/desastre` | `{disasterId, expectedVersion}`; asocia un preliminar tras comprobar el servicio propietario. |
+| GET | `/api/evaluaciones/mapa?disasterId={id}` | Mismo envelope completo, con latitude, longitude y geometry. |
+| GET | `/api/evaluaciones/catalogos` | Tipos y categorías; incluye inactivos para referencias históricas. |
+| POST | `/api/evaluaciones/catalogos/tipos-activo` | `{id, name}`. |
+| POST | `/api/evaluaciones/catalogos/categorias-dano` | `{id, name, damageLevel}`. |
+| PUT | `/api/evaluaciones/catalogos/tipos-activo/{id}/desactivar` | Desactiva sin borrar referencias. |
+| PUT | `/api/evaluaciones/catalogos/categorias-dano/{id}/desactivar` | Desactiva sin borrar referencias. |
+| GET | `/api/evaluaciones/diagnostico/live` | Liveness. |
+| GET | `/api/evaluaciones/diagnostico/ready` | Conexión JPA y tabla disponibles; 503 en fallo. |
+
+Ejemplo de creación (evaluator y organization los asigna el servidor):
+
+```json
+{"disasterId":null,"assetId":"bridge-001","assetTypeId":"Bridge","damageCategoryId":"Severe","evaluatedAt":"2026-11-18T00:00:00Z","location":"Zona Norte","latitude":4.7,"longitude":-74.0,"geometry":null,"description":"Daño estructural","evidence":[],"budget":150000.00}
+```
+
+La categoría determina el nivel canónico None, Minor, Moderate, Severe o Destroyed. El tipo determina assetType. Se permiten nuevas entradas sin recompilar. Referencias, nombre del catálogo y mapeo de nivel son estables; la operación administrativa posterior es su desactivación.
+
+El presupuesto es COP, no negativo y con dos decimales. Coordenadas WGS84 vienen en pares o ambas null. GeoJSON admite Point, Polygon y MultiPolygon en longitud-latitud, hasta 2000 posiciones y 64 KiB; JTS se utiliza únicamente para validación geométrica, no como motor GIS. El cuerpo tiene un máximo de 256 KiB. Validación estructural: 400; referencias inactivas y geometría inválida: 422. 401/403 distinguen autenticación y permisos; 404 oculta preliminares ajenos; 409 identifica conflictos de identidad, activo o versión; 503 representa dependencia no disponible. Los errores de persistencia no se convierten en arrays vacíos.
+
+## Decisiones ADD y compatibilidad
+
+El enunciado §4.2 es la fuente principal. DAM-01/02 usan el snapshot y mapa; DAM-03/04 disponen de detalle, creación y edición de borradores. Aprobación, rechazo, historial de revisiones, evidencias multipart y la consulta DAM-05 de sincronización no se anuncian como implementados en 07A.1. La cola offline permanece en Android. Se conservan únicamente referencias de evidencia, sin subir ni servir archivos.
+
+`revision` comienza en 1 y no se crean revisiones en esta iteración; `version` comienza en 0 y JPA la incrementa al modificar o asociar. Esto prioriza el alcance de 07A.1 frente a la instrucción genérica de incrementar revision en el documento histórico de integración. No afecta propuestas: estas solo consumen evaluaciones Validated y aquí todas las nuevas evaluaciones son Draft. Los snapshots incluyen Draft; el consumidor mantiene su filtro de elegibilidad.
+
+assetId identifica el activo; no se cambia por edición. El contrato de Reconstrucción exige una evaluación actual por activo y desastre: un índice único aplica esa restricción al asociar. No se fusionan registros por proximidad ni se crean claves foráneas hacia disasters. La creación y su recibo original son atómicos; el reintento devuelve el recibo original aunque el borrador haya sido editado, mientras GET devuelve su estado actual. La propiedad de la operación incluye la identidad evaluadora y su organización.
+
+El contenedor administra concurrencia, componentes stateless, conexiones y transacciones. JPA materializa resultados antes de retornarlos y @Version evita actualizaciones perdidas. La separación de esquemas y credenciales reduce el alcance de acceso; validar disasterId mediante REST preserva ownership, a cambio de depender de la disponibilidad de Desastres para nuevas asociaciones. JTA local garantiza atomicidad en Daños, sin transacción distribuida con Desastres. REST/JSON permite interoperar con .NET sin compartir sus bibliotecas. El WAR requiere un Application Server compatible y configuración operativa; no se afirma mejor desempeño ni disponibilidad sin mediciones.
+
+## Validación local
+
+Con PostgreSQL aislado, este esquema migrado, el WAR desplegado y el servicio real de Desastres disponible:
+
+```sh
+DAMAGE_TEST_URL=http://127.0.0.1:8170 \
+DISASTERS_TEST_URL=http://127.0.0.1:8198 \
+DAMAGE_TEST_KEY=/ruta/privada/de/pruebas.pem \
+python3 scripts/integration_test.py
+```
+
+El servidor de prueba debe confiar exclusivamente en la clave pública de ese par, issuer `https://identity.test` y audiencia `platform`. La clave privada se genera fuera del repositorio y se utiliza solo para firmar identidades del escenario local. Este procedimiento no habilita un bypass de autenticación en producción. El script rechaza destinos remotos y crea datos de prueba; nunca debe apuntarse al proyecto Supabase. También admite una URL local de YARP para comprobar el enrutamiento.
+
+En YARP configure externamente `ReverseProxy__Clusters__damage-assessment-api__Destinations__local__Address` con la URL del Application Server. Las rutas son explícitas, sin fallback a operaciones futuras. La ausencia de destinos de Daños no impide atender otros servicios.
+
+Para habilitar el consumidor existente de Reconstrucción, configure externamente `ExternalApis__DamageAssessments__BaseUrl` y su `ExternalApis__DamageAssessments__BearerToken` de servicio, con issuer/audiencia y claims autorizados, y desactive `Reconstruction__DemoExternalData`. No se cambia su lector HTTP ni sus reglas financieras. El contrato se verificó utilizando directamente `DamageAssessmentHttpReader` contra este servicio a través de YARP.
