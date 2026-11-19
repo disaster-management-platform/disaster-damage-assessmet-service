@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import time
 import uuid
+import sys
 from urllib.request import Request,urlopen
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -29,6 +30,22 @@ def call(path,method='GET',body=None,bearer=auth,target=None):
  except HTTPError as e:r=e
  with r:return r.status,json.load(r)
 def operation(budget=12.34):return {'clientRequestId':str(uuid.uuid4()),'evaluation':{'disasterId':None,'assetId':str(uuid.uuid4()),'assetTypeId':'Bridge','damageCategoryId':'Severe','evaluatedAt':'2026-11-18T00:00:00Z','location':'Batch delta local','description':'Synthetic','latitude':None,'longitude':None,'geometry':None,'evidence':[],'budget':budget}}
+if '--scope-only' in sys.argv:
+ disaster=int(os.environ['DAMAGE_TEST_DISASTER_ID'])
+ op=operation();status,result=call('/batch','POST',{'operations':[op]});assert status==200,(status,result)
+ first=result['results'][0]['evaluation'];status,initial=call('/sync');assert status==200
+ scoped=token(grants=[str(disaster)])
+ status,target=call('/sync?disasterId='+str(disaster),bearer=scoped);assert status==200
+ status,associated=call('/'+first['evaluationId']+'/desastre','PUT',{'disasterId':disaster,'expectedVersion':first['version']},scoped);assert status==200,(status,associated)
+ status,moved=call('/sync?disasterId='+str(disaster)+'&cursor='+target['nextCursor'],bearer=scoped);assert status==200
+ assert any(v['evaluationId']==first['evaluationId'] for v in moved['evaluations'])
+ for path in ['/sync?cursor='+initial['nextCursor'],'/sync']:
+  status,removed=call(path);assert status==200,(status,removed)
+  assert not any(v['evaluationId']==first['evaluationId'] for v in removed['evaluations'])
+  tombstones=[v for v in removed['removed'] if v['evaluationId']==first['evaluationId']]
+  assert len(tombstones)==1 and set(tombstones[0])=={'evaluationId','version'},tombstones
+ print('PASS authorized destination and preliminary-scope invalidation, including initial/reset cursor, without target disclosure')
+ sys.exit(0)
 a=operation();bad=operation(-1);b=operation()
 status,batch=call('/batch','POST',{'operations':[a,bad,b]});assert status==200,(status,batch)
 assert [v['status'] for v in batch['results']]==['Created','ValidationError','Created'],batch
@@ -85,3 +102,10 @@ status,associated=call('/'+first['evaluationId']+'/desastre','PUT',{'disasterId'
 status,moved=call('/sync?disasterId=1&cursor='+empty['nextCursor'],bearer=scoped);assert status==200
 assert any(v['evaluationId']==first['evaluationId'] and v['disasterId']==1 for v in moved['evaluations'])
 print('PASS: independent batch outcomes, immutable idempotent replay, limits, initial pages, scoped cursors, incremental updates and out-of-order transaction commits without omissions')
+
+# The original preliminary scope must receive only the removal, even without target grants.
+status,removed=call('/sync?cursor='+late['nextCursor']);assert status==200,(status,removed)
+assert not any(v['evaluationId']==first['evaluationId'] for v in removed['evaluations'])
+tombstones=[v for v in removed['removed'] if v['evaluationId']==first['evaluationId']]
+assert len(tombstones)==1 and set(tombstones[0])=={'evaluationId','version'},tombstones
+print('PASS: preliminary scope removal without target disaster disclosure')

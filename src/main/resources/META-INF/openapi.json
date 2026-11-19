@@ -1896,7 +1896,8 @@
         "required": [
           "evaluations",
           "nextCursor",
-          "hasMore"
+          "hasMore",
+          "removed"
         ],
         "properties": {
           "evaluations": {
@@ -1911,6 +1912,28 @@
           },
           "hasMore": {
             "type": "boolean"
+          },
+          "removed": {
+            "type": "array",
+            "description": "Pertenencias invalidadas en este ámbito; no revela el desastre de destino. Aplicar junto con la página y el cursor, conservando datos locales protegidos. También presente en cargas iniciales y reinicios.",
+            "items": {
+              "type": "object",
+              "required": [
+                "evaluationId",
+                "version"
+              ],
+              "properties": {
+                "evaluationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "version": {
+                  "type": "integer",
+                  "format": "int64",
+                  "minimum": 0
+                }
+              }
+            }
           }
         }
       }
